@@ -71,6 +71,9 @@ static BOOL PDSTMIsMixablePlaybackCategory(NSString *category) {
 // and it was previously unhooked — which is why they interrupted background
 // audio. Hooking it here is the core fix for the "audio stops" bug.
 - (BOOL)setCategory:(NSString *)category mode:(NSString *)mode routeSharingPolicy:(AVAudioSessionRouteSharingPolicy)policy options:(AVAudioSessionCategoryOptions)options error:(NSError **)outError {
+    NSLog(@"[PleaseDontStopTheMusic] setCategory cat=%@ mode=%@ opts=%lu otherPlaying=%d mixable=%d",
+          category, mode, (unsigned long)options, self.isOtherAudioPlaying,
+          PDSTMIsMixablePlaybackCategory(category));
     if (self.isOtherAudioPlaying && PDSTMIsMixablePlaybackCategory(category)) {
         if ([category isEqualToString:AVAudioSessionCategorySoloAmbient]) {
             category = AVAudioSessionCategoryAmbient;
@@ -90,41 +93,16 @@ static BOOL PDSTMIsMixablePlaybackCategory(NSString *category) {
     return %orig(category, options, outError);
 }
 
-// Some apps configure their category once (when nothing else is playing) and
-// only call -setActive: later. Catch that case at activation time: if other
-// audio is playing and we are about to activate a non-mixing interrupting
-// session, re-apply the category with MixWithOthers so we don't cut it off.
-- (BOOL)setActive:(BOOL)active error:(NSError **)outError {
-    if (active && self.isOtherAudioPlaying
-        && PDSTMIsMixablePlaybackCategory(self.category)
-        && !(self.categoryOptions & AVAudioSessionCategoryOptionMixWithOthers)) {
-        NSString *cat = self.category;
-        if ([cat isEqualToString:AVAudioSessionCategorySoloAmbient]) {
-            cat = AVAudioSessionCategoryAmbient;
-        }
-        [self setCategory:cat
-                     mode:self.mode
-                  options:self.categoryOptions | AVAudioSessionCategoryOptionMixWithOthers
-                    error:nil];
-    }
-    return %orig;
-}
-
-- (BOOL)setActive:(BOOL)active withOptions:(AVAudioSessionSetActiveOptions)options error:(NSError **)outError {
-    if (active && self.isOtherAudioPlaying
-        && PDSTMIsMixablePlaybackCategory(self.category)
-        && !(self.categoryOptions & AVAudioSessionCategoryOptionMixWithOthers)) {
-        NSString *cat = self.category;
-        if ([cat isEqualToString:AVAudioSessionCategorySoloAmbient]) {
-            cat = AVAudioSessionCategoryAmbient;
-        }
-        [self setCategory:cat
-                     mode:self.mode
-                  options:self.categoryOptions | AVAudioSessionCategoryOptionMixWithOthers
-                    error:nil];
-    }
-    return %orig;
-}
+// NOTE: we deliberately do NOT hook -setActive:. An earlier version re-applied
+// the category (adding MixWithOthers) from inside -setActive: to catch apps
+// that set their category before any other audio was playing. But re-setting
+// the category triggers an audio route-change notification, which video apps
+// handle by calling -setActive:/-setCategory: again — re-entering this code and
+// looping. Picture-in-Picture is the worst case: AVKit toggles -setActive:
+// rapidly during the PiP transition, so the loop hangs the app (the "TikTok
+// LIVE PiP freeze", issue #3). The setCategory hooks above already apply mixing
+// at configuration time, which is enough for normal playback, so activation is
+// left completely untouched.
 
 %end
 
