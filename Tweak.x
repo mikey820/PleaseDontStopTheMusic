@@ -19,12 +19,28 @@
 //   * Other audio already playing -> this app is the "intruder". Force it to
 //     mix so it joins the existing playback instead of interrupting it (and so
 //     it doesn't steal the lock-screen controls from the music app).
+//
+// IMPORTANT: only ever touch *pure playback* categories. Recording-capable
+// sessions (PlayAndRecord / Record) and MultiRoute are used by live streaming,
+// VoIP and real-time comms (e.g. TikTok LIVE, which records the mic while it
+// plays). Forcing MixWithOthers onto those audio units — and worse, re-applying
+// the category on every -setActive: while AVKit is spinning up Picture-in-
+// Picture — stalls the audio unit and freezes the video pipeline. So we leave
+// them completely alone and only mix the playback-only intruders.
+
+// Returns YES only for the playback-only categories we are safe to force into
+// mixing. Anything that can record (or MultiRoute) is left untouched.
+static BOOL PDSTMIsMixablePlaybackCategory(NSString *category) {
+    return [category isEqualToString:AVAudioSessionCategoryPlayback]
+        || [category isEqualToString:AVAudioSessionCategorySoloAmbient]
+        || [category isEqualToString:AVAudioSessionCategoryAmbient];
+}
 
 %hook AVAudioSession
 
 // Older convenience setter (category only).
 - (BOOL)setCategory:(NSString *)category error:(NSError **)outError {
-    if (self.isOtherAudioPlaying) {
+    if (self.isOtherAudioPlaying && PDSTMIsMixablePlaybackCategory(category)) {
         if ([category isEqualToString:AVAudioSessionCategorySoloAmbient]) {
             // SoloAmbient cannot mix; Ambient is the mixable equivalent.
             return %orig(AVAudioSessionCategoryAmbient, outError);
@@ -42,7 +58,7 @@
 }
 
 - (BOOL)setCategory:(NSString *)category mode:(NSString *)mode options:(AVAudioSessionCategoryOptions)options error:(NSError **)outError {
-    if (self.isOtherAudioPlaying) {
+    if (self.isOtherAudioPlaying && PDSTMIsMixablePlaybackCategory(category)) {
         if ([category isEqualToString:AVAudioSessionCategorySoloAmbient]) {
             category = AVAudioSessionCategoryAmbient;
         }
@@ -55,7 +71,7 @@
 // and it was previously unhooked — which is why they interrupted background
 // audio. Hooking it here is the core fix for the "audio stops" bug.
 - (BOOL)setCategory:(NSString *)category mode:(NSString *)mode routeSharingPolicy:(AVAudioSessionRouteSharingPolicy)policy options:(AVAudioSessionCategoryOptions)options error:(NSError **)outError {
-    if (self.isOtherAudioPlaying) {
+    if (self.isOtherAudioPlaying && PDSTMIsMixablePlaybackCategory(category)) {
         if ([category isEqualToString:AVAudioSessionCategorySoloAmbient]) {
             category = AVAudioSessionCategoryAmbient;
         }
@@ -65,7 +81,7 @@
 }
 
 - (BOOL)setCategory:(NSString *)category withOptions:(AVAudioSessionCategoryOptions)options error:(NSError **)outError {
-    if (self.isOtherAudioPlaying) {
+    if (self.isOtherAudioPlaying && PDSTMIsMixablePlaybackCategory(category)) {
         if ([category isEqualToString:AVAudioSessionCategorySoloAmbient]) {
             category = AVAudioSessionCategoryAmbient;
         }
@@ -80,6 +96,7 @@
 // session, re-apply the category with MixWithOthers so we don't cut it off.
 - (BOOL)setActive:(BOOL)active error:(NSError **)outError {
     if (active && self.isOtherAudioPlaying
+        && PDSTMIsMixablePlaybackCategory(self.category)
         && !(self.categoryOptions & AVAudioSessionCategoryOptionMixWithOthers)) {
         NSString *cat = self.category;
         if ([cat isEqualToString:AVAudioSessionCategorySoloAmbient]) {
@@ -95,6 +112,7 @@
 
 - (BOOL)setActive:(BOOL)active withOptions:(AVAudioSessionSetActiveOptions)options error:(NSError **)outError {
     if (active && self.isOtherAudioPlaying
+        && PDSTMIsMixablePlaybackCategory(self.category)
         && !(self.categoryOptions & AVAudioSessionCategoryOptionMixWithOthers)) {
         NSString *cat = self.category;
         if ([cat isEqualToString:AVAudioSessionCategorySoloAmbient]) {
