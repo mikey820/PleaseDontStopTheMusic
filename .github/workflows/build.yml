@@ -37,7 +37,7 @@ jobs:
           mkdir -p artifacts
           cp rootless/packages/*.deb   artifacts/ 2>/dev/null || true
           cp rootful/packages/*.deb    artifacts/ 2>/dev/null || true
-          cp jailed/AudioMix.dylib artifacts/AudioMix_jailed.dylib 2>/dev/null || true
+          cp jailed/PleaseDontStopTheMusic.dylib artifacts/PleaseDontStopTheMusic_jailed.dylib 2>/dev/null || true
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

@@ -50,5 +50,5 @@
 %end
 
 %ctor {
-    NSLog(@"[AudioMix] loaded");
+    NSLog(@"[PleaseDontStopTheMusic] loaded");
 }
