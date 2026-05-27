@@ -30,10 +30,12 @@
             return %orig(AVAudioSessionCategoryAmbient, outError);
         }
         if ([category isEqualToString:AVAudioSessionCategoryPlayback]) {
-            return %orig(category,
-                         AVAudioSessionModeDefault,
-                         AVAudioSessionCategoryOptionMixWithOthers,
-                         outError);
+            // Route through the mode/options setter (also hooked) so the
+            // MixWithOthers option is applied.
+            return [self setCategory:category
+                                mode:AVAudioSessionModeDefault
+                             options:AVAudioSessionCategoryOptionMixWithOthers
+                               error:outError];
         }
     }
     return %orig;
