@@ -51,3 +51,8 @@ jobs:
         with:
           files: artifacts/*
           generate_release_notes: true
+          # Tags containing "test" are diagnostic builds: publish as a
+          # prerelease so they are never the "Latest" release and are never
+          # picked up by the Sileo repo update workflow.
+          prerelease: ${{ contains(github.ref_name, 'test') }}
+          name: ${{ contains(github.ref_name, 'test') && format('{0} — TEST BUILD (do not install for daily use)', github.ref_name) || github.ref_name }}
