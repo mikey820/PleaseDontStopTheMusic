@@ -27,17 +27,34 @@ jobs:
           mkdir -p "$THEOS/sdks"
           ln -s "$SDK_PATH" "$THEOS/sdks/iPhoneOS${SDK_VER}.sdk"
           echo "SDK_VERSION=$SDK_VER" >> $GITHUB_ENV
+          echo "SDK_PATH=$SDK_PATH" >> $GITHUB_ENV
           echo "SDK setup complete: iPhoneOS${SDK_VER}.sdk"
 
-      - name: Build all variants
+      - name: Setup roothide Theos
+        run: |
+          ROOTHIDE_THEOS=${{ github.workspace }}/theos-roothide
+          echo "ROOTHIDE_THEOS=$ROOTHIDE_THEOS" >> $GITHUB_ENV
+          git clone --recursive https://github.com/roothide/theos.git $ROOTHIDE_THEOS --depth 1
+          mkdir -p "$ROOTHIDE_THEOS/sdks"
+          ln -s "$SDK_PATH" "$ROOTHIDE_THEOS/sdks/iPhoneOS${SDK_VERSION}.sdk"
+
+      - name: Build rootless / rootful / jailed
         run: make clean all
+
+      - name: Build roothide (arm64e)
+        run: |
+          THEOS=$ROOTHIDE_THEOS $MAKE -C roothide clean package FINALPACKAGE=1
+        env:
+          MAKE: make
 
       - name: Collect artifacts
         run: |
           mkdir -p artifacts
           cp rootless/packages/*.deb   artifacts/ 2>/dev/null || true
           cp rootful/packages/*.deb    artifacts/ 2>/dev/null || true
+          cp roothide/packages/*.deb   artifacts/ 2>/dev/null || true
           cp jailed/PleaseDontStopTheMusic.dylib artifacts/PleaseDontStopTheMusic_jailed.dylib 2>/dev/null || true
+          echo "=== artifacts ==="; ls -la artifacts/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
