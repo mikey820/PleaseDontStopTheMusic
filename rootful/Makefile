@@ -7,7 +7,7 @@ TWEAK_NAME = PleaseDontStopTheMusic
 
 PleaseDontStopTheMusic_FILES = ../Tweak.x
 PleaseDontStopTheMusic_CFLAGS = -fobjc-arc
-PleaseDontStopTheMusic_FRAMEWORKS = AVFoundation
+PleaseDontStopTheMusic_FRAMEWORKS = AVFoundation MediaPlayer
 PleaseDontStopTheMusic_LDFLAGS = -Wl,-segalign,4000
 
 include $(THEOS_MAKE_PATH)/tweak.mk
